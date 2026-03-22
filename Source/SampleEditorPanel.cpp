@@ -61,6 +61,8 @@ void SampleEditorPanel::updateFromPad()
     releaseSlider.setValue (currentPad->release, juce::dontSendNotification);
     pitchSlider.setValue (currentPad->pitch, juce::dontSendNotification);
     panSlider.setValue (currentPad->pan, juce::dontSendNotification);
+    cutoffSlider.setValue (currentPad->filterCutoff, juce::dontSendNotification);
+    resoSlider.setValue (currentPad->filterReso, juce::dontSendNotification);
 
     auto& buf = currentPad->getSampleBuffer();
     waveform.setBuffer (&buf);
@@ -78,8 +80,10 @@ void SampleEditorPanel::sliderValueChanged (juce::Slider* slider)
     else if (slider == &decaySlider)   currentPad->decay   = (float) slider->getValue();
     else if (slider == &sustainSlider) currentPad->sustain = (float) slider->getValue();
     else if (slider == &releaseSlider) currentPad->release = (float) slider->getValue();
-    else if (slider == &pitchSlider)   currentPad->pitch   = (float) slider->getValue();
-    else if (slider == &panSlider)     currentPad->pan     = (float) slider->getValue();
+    else if (slider == &pitchSlider)   currentPad->pitch        = (float) slider->getValue();
+    else if (slider == &panSlider)     currentPad->pan          = (float) slider->getValue();
+    else if (slider == &cutoffSlider)  currentPad->filterCutoff = (float) slider->getValue();
+    else if (slider == &resoSlider)    currentPad->filterReso   = (float) slider->getValue();
 
     // Update ADSR overlay
     waveform.setADSR (currentPad->attack, currentPad->decay, currentPad->sustain, currentPad->release);

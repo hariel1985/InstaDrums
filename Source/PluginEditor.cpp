@@ -211,7 +211,22 @@ void InstaDrumsEditor::timerCallback()
     for (auto* pc : padComponents)
         pc->repaint();
 
-    // Update VU meter from processor output levels
-    // (simplified: just repaint for now)
-    masterPanel.getVuMeter().repaint();
+    // Sync FX panel knobs -> processor atomic params
+    processor.compThreshold.store (fxPanel.getCompThreshold());
+    processor.compRatio.store     (fxPanel.getCompRatio());
+    processor.eqLo.store          (fxPanel.getEqLo());
+    processor.eqMid.store         (fxPanel.getEqMid());
+    processor.eqHi.store          (fxPanel.getEqHi());
+    processor.distDrive.store     (fxPanel.getDistDrive());
+    processor.distMix.store       (fxPanel.getDistMix());
+    processor.reverbSize.store    (fxPanel.getReverbSize());
+    processor.reverbDecay.store   (fxPanel.getReverbDecay());
+
+    // Sync master panel -> processor
+    processor.masterVolume.store (masterPanel.getMasterVolume());
+    processor.masterPan.store    (masterPanel.getMasterPan());
+    processor.masterTune.store   (masterPanel.getMasterTune());
+
+    // Update VU meter from processor
+    masterPanel.getVuMeter().setLevel (processor.vuLevelL.load(), processor.vuLevelR.load());
 }

@@ -3,9 +3,17 @@
 DrumPad::DrumPad() {}
 DrumPad::~DrumPad() {}
 
-void DrumPad::prepareToPlay (double sr, int /*samplesPerBlock*/)
+void DrumPad::prepareToPlay (double sr, int samplesPerBlock)
 {
     sampleRate = sr;
+
+    // Prepare per-pad filter
+    juce::dsp::ProcessSpec spec { sr, (juce::uint32) samplesPerBlock, 1 };
+    filterL.prepare (spec);
+    filterR.prepare (spec);
+    filterL.reset();
+    filterR.reset();
+    lastCutoff = filterCutoff;
 }
 
 void DrumPad::releaseResources()
@@ -339,6 +347,18 @@ void DrumPad::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
     float leftGain  = std::cos (panPos * juce::MathConstants<float>::halfPi);
     float rightGain = std::sin (panPos * juce::MathConstants<float>::halfPi);
 
+    // Update filter coefficients if cutoff changed
+    if (std::abs (filterCutoff - lastCutoff) > 1.0f || std::abs (filterReso - filterL.coefficients->coefficients[0]) > 0.01f)
+    {
+        float clampedCutoff = juce::jlimit (20.0f, (float) (sampleRate * 0.49), filterCutoff);
+        auto coeffs = juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, clampedCutoff, filterReso);
+        *filterL.coefficients = *coeffs;
+        *filterR.coefficients = *coeffs;
+        lastCutoff = filterCutoff;
+    }
+
+    bool useFilter = filterCutoff < 19900.0f; // Skip filter if fully open
+
     for (int i = 0; i < numSamples; ++i)
     {
         if (! playing) break;
@@ -374,6 +394,11 @@ void DrumPad::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
                 float s0 = sampleBuffer.getSample (srcCh, pos0);
                 float s1 = sampleBuffer.getSample (srcCh, pos1);
                 float sampleVal = s0 + frac * (s1 - s0);
+
+                // Apply per-pad filter
+                if (useFilter)
+                    sampleVal = (ch == 0) ? filterL.processSample (sampleVal)
+                                          : filterR.processSample (sampleVal);
 
                 float channelGain = (ch == 0) ? leftGain : rightGain;
                 outputBuffer.addSample (ch, startSample + i, sampleVal * gain * channelGain);

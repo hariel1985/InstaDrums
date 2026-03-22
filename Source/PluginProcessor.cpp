@@ -40,8 +40,27 @@ void InstaDrumsProcessor::initializeDefaults()
 
 void InstaDrumsProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    currentSampleRate = sampleRate;
+
     for (int i = 0; i < numActivePads; ++i)
         pads[i].prepareToPlay (sampleRate, samplesPerBlock);
+
+    // Master FX chain
+    juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) samplesPerBlock, 2 };
+
+    reverb.prepare (spec);
+    compressor.prepare (spec);
+
+    juce::dsp::ProcessSpec monoSpec { sampleRate, (juce::uint32) samplesPerBlock, 1 };
+    eqLoFilterL.prepare (monoSpec);  eqLoFilterR.prepare (monoSpec);
+    eqMidFilterL.prepare (monoSpec); eqMidFilterR.prepare (monoSpec);
+    eqHiFilterL.prepare (monoSpec);  eqHiFilterR.prepare (monoSpec);
+
+    reverb.reset();
+    compressor.reset();
+    eqLoFilterL.reset();  eqLoFilterR.reset();
+    eqMidFilterL.reset(); eqMidFilterR.reset();
+    eqHiFilterL.reset();  eqHiFilterR.reset();
 }
 
 void InstaDrumsProcessor::releaseResources()
@@ -87,6 +106,122 @@ void InstaDrumsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
     // Render audio from all pads
     for (int i = 0; i < numActivePads; ++i)
         pads[i].renderNextBlock (buffer, 0, buffer.getNumSamples());
+
+    // Apply master FX chain
+    applyMasterFx (buffer);
+}
+
+void InstaDrumsProcessor::applyMasterFx (juce::AudioBuffer<float>& buffer)
+{
+    const int numSamples = buffer.getNumSamples();
+
+    // --- Distortion (pre-EQ) ---
+    float drive = distDrive.load();
+    float dMix  = distMix.load();
+    if (drive > 0.001f && dMix > 0.001f)
+    {
+        float driveGain = 1.0f + drive * 20.0f;
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+        {
+            float* data = buffer.getWritePointer (ch);
+            for (int i = 0; i < numSamples; ++i)
+            {
+                float dry = data[i];
+                float wet = std::tanh (dry * driveGain) / std::tanh (driveGain);
+                data[i] = dry * (1.0f - dMix) + wet * dMix;
+            }
+        }
+    }
+
+    // --- 3-band EQ ---
+    float lo  = eqLo.load();
+    float mid = eqMid.load();
+    float hi  = eqHi.load();
+
+    if (std::abs (lo) > 0.1f || std::abs (mid) > 0.1f || std::abs (hi) > 0.1f)
+    {
+        auto loCoeffs  = juce::dsp::IIR::Coefficients<float>::makeLowShelf  (currentSampleRate, 200.0,  0.707f, juce::Decibels::decibelsToGain (lo));
+        auto midCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter (currentSampleRate, 1000.0, 1.0f,   juce::Decibels::decibelsToGain (mid));
+        auto hiCoeffs  = juce::dsp::IIR::Coefficients<float>::makeHighShelf (currentSampleRate, 5000.0, 0.707f, juce::Decibels::decibelsToGain (hi));
+
+        *eqLoFilterL.coefficients  = *loCoeffs;  *eqLoFilterR.coefficients  = *loCoeffs;
+        *eqMidFilterL.coefficients = *midCoeffs; *eqMidFilterR.coefficients = *midCoeffs;
+        *eqHiFilterL.coefficients  = *hiCoeffs;  *eqHiFilterR.coefficients  = *hiCoeffs;
+
+        if (buffer.getNumChannels() >= 2)
+        {
+            float* L = buffer.getWritePointer (0);
+            float* R = buffer.getWritePointer (1);
+            for (int i = 0; i < numSamples; ++i)
+            {
+                L[i] = eqLoFilterL.processSample (L[i]);
+                L[i] = eqMidFilterL.processSample (L[i]);
+                L[i] = eqHiFilterL.processSample (L[i]);
+                R[i] = eqLoFilterR.processSample (R[i]);
+                R[i] = eqMidFilterR.processSample (R[i]);
+                R[i] = eqHiFilterR.processSample (R[i]);
+            }
+        }
+    }
+
+    // --- Compressor ---
+    float thresh = compThreshold.load();
+    float ratio  = compRatio.load();
+    compressor.setThreshold (thresh);
+    compressor.setRatio (ratio);
+    compressor.setAttack (10.0f);
+    compressor.setRelease (100.0f);
+    {
+        juce::dsp::AudioBlock<float> block (buffer);
+        juce::dsp::ProcessContextReplacing<float> ctx (block);
+        compressor.process (ctx);
+    }
+
+    // --- Reverb ---
+    float rSize  = reverbSize.load();
+    float rDecay = reverbDecay.load();
+    if (rSize > 0.01f || rDecay > 0.01f)
+    {
+        juce::dsp::Reverb::Parameters rParams;
+        rParams.roomSize = rSize;
+        rParams.damping  = 1.0f - rDecay;
+        rParams.wetLevel = rSize * 0.5f;
+        rParams.dryLevel = 1.0f;
+        rParams.width    = 1.0f;
+        reverb.setParameters (rParams);
+
+        juce::dsp::AudioBlock<float> block (buffer);
+        juce::dsp::ProcessContextReplacing<float> ctx (block);
+        reverb.process (ctx);
+    }
+
+    // --- Master Volume + Pan ---
+    float mVol = masterVolume.load();
+    float mPan = masterPan.load();
+    float panPos = (mPan + 1.0f) * 0.5f;
+    float mLGain = std::cos (panPos * juce::MathConstants<float>::halfPi) * mVol;
+    float mRGain = std::sin (panPos * juce::MathConstants<float>::halfPi) * mVol;
+
+    if (buffer.getNumChannels() >= 2)
+    {
+        buffer.applyGain (0, 0, numSamples, mLGain);
+        buffer.applyGain (1, 0, numSamples, mRGain);
+    }
+    else
+    {
+        buffer.applyGain (mVol);
+    }
+
+    // --- VU Meter ---
+    float rmsL = 0.0f, rmsR = 0.0f;
+    if (buffer.getNumChannels() >= 1)
+        rmsL = buffer.getRMSLevel (0, 0, numSamples);
+    if (buffer.getNumChannels() >= 2)
+        rmsR = buffer.getRMSLevel (1, 0, numSamples);
+
+    // Smooth VU (simple exponential)
+    vuLevelL.store (vuLevelL.load() * 0.8f + rmsL * 0.2f);
+    vuLevelR.store (vuLevelR.load() * 0.8f + rmsR * 0.2f);
 }
 
 DrumPad* InstaDrumsProcessor::findPadForNote (int midiNote)

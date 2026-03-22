@@ -64,6 +64,10 @@ public:
     float sustain = 1.0f;
     float release = 0.05f;
 
+    // Per-pad filter
+    float filterCutoff = 20000.0f;  // Hz
+    float filterReso   = 0.707f;    // Q
+
     // State
     bool isPlaying() const { return playing; }
     juce::String getLoadedFileName() const { return loadedFileName; }
@@ -86,6 +90,10 @@ private:
     double readPosition = 0.0;
     bool playing = false;
     float currentVelocity = 1.0f;
+
+    // Per-pad low-pass filter (stereo)
+    juce::dsp::IIR::Filter<float> filterL, filterR;
+    float lastCutoff = 20000.0f;
 
     // ADSR state
     enum class EnvelopeStage { Idle, Attack, Decay, Sustain, Release };
