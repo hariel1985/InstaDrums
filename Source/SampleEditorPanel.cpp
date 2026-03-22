@@ -3,11 +3,9 @@
 
 SampleEditorPanel::SampleEditorPanel()
 {
-    titleLabel.setFont (juce::FontOptions (14.0f, juce::Font::bold));
     titleLabel.setColour (juce::Label::textColourId, InstaDrumsLookAndFeel::textSecondary);
     addAndMakeVisible (titleLabel);
 
-    padNameLabel.setFont (juce::FontOptions (13.0f, juce::Font::bold));
     padNameLabel.setColour (juce::Label::textColourId, InstaDrumsLookAndFeel::accent);
     addAndMakeVisible (padNameLabel);
 
@@ -24,6 +22,9 @@ SampleEditorPanel::SampleEditorPanel()
     setupKnob (resoSlider,    resoLabel,    "Reso",    0.1, 10.0, 0.707, 0.01);
 
     cutoffSlider.setSkewFactorFromMidPoint (1000.0);
+
+    cutoffSlider.getProperties().set (InstaDrumsLookAndFeel::knobTypeProperty, "dark");
+    resoSlider.getProperties().set (InstaDrumsLookAndFeel::knobTypeProperty, "dark");
 }
 
 void SampleEditorPanel::setupKnob (juce::Slider& s, juce::Label& l, const juce::String& name,
@@ -33,11 +34,11 @@ void SampleEditorPanel::setupKnob (juce::Slider& s, juce::Label& l, const juce::
     s.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     s.setRange (min, max, step);
     s.setValue (val, juce::dontSendNotification);
+    s.setDoubleClickReturnValue (true, val);
     s.addListener (this);
     addAndMakeVisible (s);
 
     l.setText (name, juce::dontSendNotification);
-    l.setFont (juce::FontOptions (9.0f));
     l.setColour (juce::Label::textColourId, InstaDrumsLookAndFeel::textSecondary);
     l.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (l);
@@ -85,7 +86,6 @@ void SampleEditorPanel::sliderValueChanged (juce::Slider* slider)
     else if (slider == &cutoffSlider)  currentPad->filterCutoff = (float) slider->getValue();
     else if (slider == &resoSlider)    currentPad->filterReso   = (float) slider->getValue();
 
-    // Update ADSR overlay
     waveform.setADSR (currentPad->attack, currentPad->decay, currentPad->sustain, currentPad->release);
 }
 
@@ -100,37 +100,51 @@ void SampleEditorPanel::paint (juce::Graphics& g)
 
 void SampleEditorPanel::resized()
 {
-    auto area = getLocalBounds().reduced (6);
+    auto area = getLocalBounds().reduced (8);
+
+    // Scale factor based on component height (reference: 280px)
+    float scale = (float) getHeight() / 280.0f;
+    float titleSize = std::max (13.0f, 18.0f * scale);
+    float labelSize = std::max (10.0f, 13.0f * scale);
+    int labelH = (int) (labelSize + 6);
+    int headerH = (int) (titleSize + 8);
+    int spacing = std::max (4, (int) (8 * scale));
 
     // Header
-    auto header = area.removeFromTop (20);
-    titleLabel.setBounds (header.removeFromLeft (100));
+    titleLabel.setFont (juce::FontOptions (titleSize, juce::Font::bold));
+    padNameLabel.setFont (juce::FontOptions (titleSize, juce::Font::bold));
+
+    auto header = area.removeFromTop (headerH);
+    titleLabel.setBounds (header.removeFromLeft ((int) (120 * scale)));
     padNameLabel.setBounds (header);
 
-    area.removeFromTop (2);
+    area.removeFromTop (spacing);
 
-    // Waveform (top portion ~40%)
-    int waveHeight = std::max (60, (int) (area.getHeight() * 0.38f));
+    // Waveform
+    int waveHeight = std::max (50, (int) (area.getHeight() * 0.36f));
     waveform.setBounds (area.removeFromTop (waveHeight));
 
-    area.removeFromTop (4);
+    area.removeFromTop (spacing);
 
     // ADSR knobs row
-    int knobH = std::max (40, (int) (area.getHeight() * 0.45f));
-    auto adsrRow = area.removeFromTop (knobH);
+    int knobH = (area.getHeight() - spacing - labelH * 2) / 2;
+    knobH = std::max (30, knobH);
+
+    auto adsrRow = area.removeFromTop (knobH + labelH);
     int knobW = adsrRow.getWidth() / 4;
     {
         juce::Slider* s[] = { &attackSlider, &decaySlider, &sustainSlider, &releaseSlider };
         juce::Label*  l[] = { &attackLabel,  &decayLabel,  &sustainLabel,  &releaseLabel };
         for (int i = 0; i < 4; ++i)
         {
+            l[i]->setFont (juce::FontOptions (labelSize));
             auto col = adsrRow.removeFromLeft (knobW);
-            l[i]->setBounds (col.removeFromBottom (14));
+            l[i]->setBounds (col.removeFromBottom (labelH));
             s[i]->setBounds (col);
         }
     }
 
-    area.removeFromTop (2);
+    area.removeFromTop (spacing);
 
     // Bottom row: Pitch, Pan, Cutoff, Reso
     auto bottomRow = area;
@@ -140,8 +154,9 @@ void SampleEditorPanel::resized()
         juce::Label*  l[] = { &pitchLabel,  &panLabel,  &cutoffLabel,  &resoLabel };
         for (int i = 0; i < 4; ++i)
         {
+            l[i]->setFont (juce::FontOptions (labelSize));
             auto col = bottomRow.removeFromLeft (knobW);
-            l[i]->setBounds (col.removeFromBottom (14));
+            l[i]->setBounds (col.removeFromBottom (labelH));
             s[i]->setBounds (col);
         }
     }

@@ -20,6 +20,12 @@ juce_add_plugin(InstaDrums
 
 juce_generate_juce_header(InstaDrums)
 
+juce_add_binary_data(InstaDrumsData SOURCES
+    Resources/Rajdhani-Regular.ttf
+    Resources/Rajdhani-Medium.ttf
+    Resources/Rajdhani-Bold.ttf
+)
+
 target_sources(InstaDrums
     PRIVATE
         Source/PluginProcessor.cpp
@@ -42,6 +48,7 @@ target_compile_definitions(InstaDrums
 
 target_link_libraries(InstaDrums
     PRIVATE
+        InstaDrumsData
         juce::juce_audio_basics
         juce::juce_audio_devices
         juce::juce_audio_formats

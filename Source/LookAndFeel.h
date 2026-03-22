@@ -12,9 +12,35 @@ public:
     static inline const juce::Colour textSecondary { 0xff888899 };
     static inline const juce::Colour accent       { 0xff00ff88 };
 
+    // Knob type property key
+    static constexpr const char* knobTypeProperty = "knobType";
+
     InstaDrumsLookAndFeel();
 
     void drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
                            float sliderPosProportional, float rotaryStartAngle,
                            float rotaryEndAngle, juce::Slider& slider) override;
+
+    void drawButtonBackground (juce::Graphics& g, juce::Button& button,
+                               const juce::Colour& backgroundColour,
+                               bool shouldDrawButtonAsHighlighted,
+                               bool shouldDrawButtonAsDown) override;
+
+    // Custom fonts
+    juce::Font getRegularFont (float height) const;
+    juce::Font getMediumFont (float height) const;
+    juce::Font getBoldFont (float height) const;
+
+    // Background texture
+    void drawBackgroundTexture (juce::Graphics& g, juce::Rectangle<int> area);
+
+    juce::Typeface::Ptr getTypefaceForFont (const juce::Font& font) override;
+
+private:
+    juce::Typeface::Ptr typefaceRegular;
+    juce::Typeface::Ptr typefaceMedium;
+    juce::Typeface::Ptr typefaceBold;
+
+    juce::Image noiseTexture;
+    void generateNoiseTexture();
 };

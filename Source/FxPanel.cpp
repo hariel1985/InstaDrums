@@ -26,10 +26,11 @@ void FxPanel::setupKnob (juce::Slider& s, juce::Label& l, const juce::String& na
     s.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     s.setRange (min, max, step);
     s.setValue (val, juce::dontSendNotification);
+    s.setDoubleClickReturnValue (true, val);
+    s.getProperties().set (InstaDrumsLookAndFeel::knobTypeProperty, "dark");
     addAndMakeVisible (s);
 
     l.setText (name, juce::dontSendNotification);
-    l.setFont (juce::FontOptions (9.0f));
     l.setColour (juce::Label::textColourId, InstaDrumsLookAndFeel::textSecondary);
     l.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (l);
@@ -38,7 +39,6 @@ void FxPanel::setupKnob (juce::Slider& s, juce::Label& l, const juce::String& na
 void FxPanel::setupTitle (juce::Label& l, const juce::String& text)
 {
     l.setText (text, juce::dontSendNotification);
-    l.setFont (juce::FontOptions (10.0f, juce::Font::bold));
     l.setColour (juce::Label::textColourId, InstaDrumsLookAndFeel::accent);
     l.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (l);
@@ -47,70 +47,116 @@ void FxPanel::setupTitle (juce::Label& l, const juce::String& text)
 void FxPanel::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
-    g.setColour (InstaDrumsLookAndFeel::bgMedium);
+    float scale = (float) getHeight() / 220.0f;
+
+    juce::ColourGradient bgGrad (InstaDrumsLookAndFeel::bgMedium, 0, bounds.getY(),
+                                  InstaDrumsLookAndFeel::bgMedium.darker (0.2f), 0, bounds.getBottom(), false);
+    g.setGradientFill (bgGrad);
     g.fillRoundedRectangle (bounds, 6.0f);
-    g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.5f));
+    g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.6f));
     g.drawRoundedRectangle (bounds, 6.0f, 1.0f);
 
-    // "FX" header
+    // "FX" header bar
+    int headerH = (int) (22 * scale);
+    auto headerBar = bounds.reduced (1).removeFromTop ((float) headerH);
+    g.setColour (InstaDrumsLookAndFeel::bgDark.withAlpha (0.5f));
+    g.fillRoundedRectangle (headerBar.getX(), headerBar.getY(), headerBar.getWidth(), headerBar.getHeight(), 5.0f);
     g.setColour (InstaDrumsLookAndFeel::textSecondary);
-    g.setFont (juce::FontOptions (14.0f, juce::Font::bold));
-    g.drawText ("FX", bounds.reduced (6, 4).removeFromTop (18), juce::Justification::centredLeft);
+    g.setFont (juce::FontOptions (std::max (13.0f, 16.0f * scale), juce::Font::bold));
+    g.drawText ("FX", headerBar.reduced (8, 0), juce::Justification::centredLeft);
+
+    // Bordered boxes for each FX section
+    auto area = bounds.reduced (6);
+    area.removeFromTop ((float) headerH + 4);
+    float halfW = area.getWidth() / 2;
+    float rowH = area.getHeight() / 2;
+
+    auto drawFxBox = [&] (juce::Rectangle<float> r)
+    {
+        g.setColour (InstaDrumsLookAndFeel::bgDark.withAlpha (0.4f));
+        g.fillRoundedRectangle (r, 4.0f);
+        g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.35f));
+        g.drawRoundedRectangle (r, 4.0f, 1.0f);
+    };
+
+    float gap = 3.0f;
+    drawFxBox ({ area.getX(), area.getY(), halfW - gap, rowH - gap });
+    drawFxBox ({ area.getX() + halfW + gap, area.getY(), halfW - gap, rowH - gap });
+    drawFxBox ({ area.getX(), area.getY() + rowH + gap, halfW - gap, rowH - gap });
+    drawFxBox ({ area.getX() + halfW + gap, area.getY() + rowH + gap, halfW - gap, rowH - gap });
 }
 
 void FxPanel::resized()
 {
-    auto area = getLocalBounds().reduced (6);
-    area.removeFromTop (20); // FX header
+    auto area = getLocalBounds().reduced (8);
+    float scale = (float) getHeight() / 220.0f;
+
+    float titleSize = std::max (10.0f, 13.0f * scale);
+    float labelSize = std::max (9.0f, 12.0f * scale);
+    int labelH = (int) (labelSize + 6);
+    int headerH = (int) (22 * scale);
+    int titleH = (int) (titleSize + 4);
+
+    area.removeFromTop (headerH + 4);
 
     int halfW = area.getWidth() / 2;
     int rowH = area.getHeight() / 2;
 
-    // Top row: Compressor | EQ
-    auto topRow = area.removeFromTop (rowH);
+    // Update title fonts
+    compTitle.setFont (juce::FontOptions (titleSize, juce::Font::bold));
+    eqTitle.setFont (juce::FontOptions (titleSize, juce::Font::bold));
+    distTitle.setFont (juce::FontOptions (titleSize, juce::Font::bold));
+    reverbTitle.setFont (juce::FontOptions (titleSize, juce::Font::bold));
+
+    auto layoutSection = [&] (juce::Rectangle<int> secArea, juce::Label& title,
+                               juce::Slider* sliders[], juce::Label* labels[], int count)
     {
-        auto compArea = topRow.removeFromLeft (halfW).reduced (2);
-        compTitle.setBounds (compArea.removeFromTop (14));
-        int kw = compArea.getWidth() / 2;
-        auto c1 = compArea.removeFromLeft (kw);
-        compThreshLabel.setBounds (c1.removeFromBottom (12));
-        compThreshSlider.setBounds (c1);
-        compRatioLabel.setBounds (compArea.removeFromBottom (12));
-        compRatioSlider.setBounds (compArea);
-    }
+        title.setBounds (secArea.removeFromTop (titleH).reduced (4, 0));
+        int kw = secArea.getWidth() / count;
+        for (int i = 0; i < count; ++i)
+        {
+            labels[i]->setFont (juce::FontOptions (labelSize));
+            auto col = secArea.removeFromLeft (kw);
+            labels[i]->setBounds (col.removeFromBottom (labelH));
+            sliders[i]->setBounds (col);
+        }
+    };
+
+    // Top-left: Compressor
     {
-        auto eqArea = topRow.reduced (2);
-        eqTitle.setBounds (eqArea.removeFromTop (14));
-        int kw = eqArea.getWidth() / 3;
-        auto c1 = eqArea.removeFromLeft (kw);
-        eqLoLabel.setBounds (c1.removeFromBottom (12));
-        eqLoSlider.setBounds (c1);
-        auto c2 = eqArea.removeFromLeft (kw);
-        eqMidLabel.setBounds (c2.removeFromBottom (12));
-        eqMidSlider.setBounds (c2);
-        eqHiLabel.setBounds (eqArea.removeFromBottom (12));
-        eqHiSlider.setBounds (eqArea);
+        auto sec = area.removeFromTop (rowH).removeFromLeft (halfW).reduced (4, 2);
+        juce::Slider* s[] = { &compThreshSlider, &compRatioSlider };
+        juce::Label*  l[] = { &compThreshLabel,  &compRatioLabel };
+        layoutSection (sec, compTitle, s, l, 2);
     }
 
-    // Bottom row: Distortion | Reverb
+    // Top-right: EQ (need to recalculate since we consumed area)
+    // Reset area for right side
+    auto rightTop = getLocalBounds().reduced (8);
+    rightTop.removeFromTop ((int) (headerH + 4));
+    rightTop.removeFromLeft (halfW);
+    rightTop = rightTop.removeFromTop (rowH).reduced (4, 2);
     {
-        auto distArea = area.removeFromLeft (halfW).reduced (2);
-        distTitle.setBounds (distArea.removeFromTop (14));
-        int kw = distArea.getWidth() / 2;
-        auto c1 = distArea.removeFromLeft (kw);
-        distDriveLabel.setBounds (c1.removeFromBottom (12));
-        distDriveSlider.setBounds (c1);
-        distMixLabel.setBounds (distArea.removeFromBottom (12));
-        distMixSlider.setBounds (distArea);
+        juce::Slider* s[] = { &eqLoSlider, &eqMidSlider, &eqHiSlider };
+        juce::Label*  l[] = { &eqLoLabel,  &eqMidLabel,  &eqHiLabel };
+        layoutSection (rightTop, eqTitle, s, l, 3);
     }
+
+    // Bottom-left: Distortion
+    auto bottomArea = getLocalBounds().reduced (8);
+    bottomArea.removeFromTop ((int) (headerH + 4 + rowH));
     {
-        auto revArea = area.reduced (2);
-        reverbTitle.setBounds (revArea.removeFromTop (14));
-        int kw = revArea.getWidth() / 2;
-        auto c1 = revArea.removeFromLeft (kw);
-        reverbSizeLabel.setBounds (c1.removeFromBottom (12));
-        reverbSizeSlider.setBounds (c1);
-        reverbDecayLabel.setBounds (revArea.removeFromBottom (12));
-        reverbDecaySlider.setBounds (revArea);
+        auto sec = bottomArea.removeFromLeft (halfW).reduced (4, 2);
+        juce::Slider* s[] = { &distDriveSlider, &distMixSlider };
+        juce::Label*  l[] = { &distDriveLabel,  &distMixLabel };
+        layoutSection (sec, distTitle, s, l, 2);
+    }
+
+    // Bottom-right: Reverb
+    {
+        auto sec = bottomArea.reduced (4, 2);
+        juce::Slider* s[] = { &reverbSizeSlider, &reverbDecaySlider };
+        juce::Label*  l[] = { &reverbSizeLabel,  &reverbDecayLabel };
+        layoutSection (sec, reverbTitle, s, l, 2);
     }
 }

@@ -11,39 +11,66 @@ void PadComponent::paint (juce::Graphics& g)
     auto bounds = getLocalBounds().toFloat().reduced (2.0f);
     float cornerSize = 6.0f;
 
-    // Background
-    float alpha = isPressed ? 0.85f : (isDragOver ? 0.65f : (selected ? 0.55f : 0.3f));
-    g.setColour (drumPad.colour.withAlpha (alpha));
+    // Background — darker, less saturated base
+    float alpha = isPressed ? 0.6f : (isDragOver ? 0.45f : (selected ? 0.35f : 0.18f));
+    g.setColour (drumPad.colour.withSaturation (0.5f).withAlpha (alpha));
     g.fillRoundedRectangle (bounds, cornerSize);
 
-    // Border — selected = bright accent, normal = pad colour
+    // Inner gradient for depth
+    {
+        juce::ColourGradient innerGrad (juce::Colours::white.withAlpha (0.04f), bounds.getCentreX(), bounds.getY(),
+                                         juce::Colours::black.withAlpha (0.08f), bounds.getCentreX(), bounds.getBottom(), false);
+        g.setGradientFill (innerGrad);
+        g.fillRoundedRectangle (bounds, cornerSize);
+    }
+
+    // Border — selected = cyan glow, normal = subtle
     if (selected)
     {
-        g.setColour (juce::Colour (0xff00aaff)); // blue selection
-        g.drawRoundedRectangle (bounds, cornerSize, 2.5f);
+        // Outer glow effect (multiple passes)
+        auto glowColour = juce::Colour (0xff00aaff);
+        g.setColour (glowColour.withAlpha (0.1f));
+        g.drawRoundedRectangle (bounds.expanded (2), cornerSize + 1, 4.0f);
+        g.setColour (glowColour.withAlpha (0.25f));
+        g.drawRoundedRectangle (bounds.expanded (0.5f), cornerSize, 2.0f);
+        g.setColour (glowColour);
+        g.drawRoundedRectangle (bounds, cornerSize, 1.5f);
     }
     else
     {
-        g.setColour (drumPad.colour.withAlpha (0.6f));
+        g.setColour (drumPad.colour.withAlpha (0.4f));
         g.drawRoundedRectangle (bounds, cornerSize, 1.0f);
     }
 
-    // Pad number (top-left, small)
-    g.setColour (InstaDrumsLookAndFeel::textSecondary);
-    g.setFont (juce::Font (juce::FontOptions (9.0f, juce::Font::bold)));
-    g.drawText (juce::String (index + 1), bounds.reduced (4, 3), juce::Justification::topLeft);
+    // Scale fonts to pad size
+    float padScale = std::min (bounds.getWidth(), bounds.getHeight()) / 100.0f;
+    float numFontSize = std::max (9.0f, 13.0f * padScale);
+    float nameFontSize = std::max (9.0f, 14.0f * padScale);
+    float numBoxH = numFontSize + 4;
+    float numBoxW = numBoxH + 4;
+
+    // Pad number (top-left, with small dark background for contrast)
+    {
+        auto numBounds = bounds.reduced (5, 4).removeFromTop (numBoxH).removeFromLeft (numBoxW);
+        g.setColour (juce::Colours::black.withAlpha (0.3f));
+        g.fillRoundedRectangle (numBounds, 3.0f);
+        g.setColour (drumPad.colour.brighter (0.4f));
+        g.setFont (juce::Font (juce::FontOptions (numFontSize, juce::Font::bold)));
+        g.drawText (juce::String (index + 1), numBounds, juce::Justification::centred);
+    }
 
     // Waveform thumbnail (center area)
     if (drumPad.hasSample())
     {
-        auto waveArea = bounds.reduced (4, 16);
+        auto waveArea = bounds.reduced (5, numBoxH + 6);
+        waveArea.removeFromBottom (nameFontSize + 4);
         drawWaveformThumbnail (g, waveArea);
     }
 
     // Pad name (bottom)
     g.setColour (InstaDrumsLookAndFeel::textPrimary);
-    g.setFont (juce::Font (juce::FontOptions (10.0f, juce::Font::bold)));
-    g.drawText (drumPad.name, bounds.reduced (4, 2), juce::Justification::centredBottom);
+    g.setFont (juce::Font (juce::FontOptions (nameFontSize, juce::Font::bold)));
+    g.drawText (drumPad.name, bounds.reduced (5, 3), juce::Justification::centredBottom);
 
     // Playing flash
     if (drumPad.isPlaying())

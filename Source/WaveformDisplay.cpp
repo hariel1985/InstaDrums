@@ -14,9 +14,30 @@ void WaveformDisplay::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
 
-    // Background
-    g.setColour (InstaDrumsLookAndFeel::bgDark.darker (0.3f));
-    g.fillRoundedRectangle (bounds, 4.0f);
+    // Background with subtle gradient
+    {
+        juce::ColourGradient bgGrad (InstaDrumsLookAndFeel::bgDark.darker (0.4f), 0, bounds.getY(),
+                                      InstaDrumsLookAndFeel::bgDark.darker (0.2f), 0, bounds.getBottom(), false);
+        g.setGradientFill (bgGrad);
+        g.fillRoundedRectangle (bounds, 4.0f);
+    }
+
+    // Border
+    g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.3f));
+    g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
+
+    // Grid lines (vertical)
+    g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.12f));
+    for (int i = 1; i < 8; ++i)
+    {
+        float xLine = bounds.getX() + bounds.getWidth() * (float) i / 8.0f;
+        g.drawVerticalLine ((int) xLine, bounds.getY(), bounds.getBottom());
+    }
+
+    // Center line (horizontal)
+    g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.2f));
+    float midY = bounds.getCentreY();
+    g.drawHorizontalLine ((int) midY, bounds.getX(), bounds.getRight());
 
     if (audioBuffer == nullptr || audioBuffer->getNumSamples() == 0)
         return;
@@ -27,7 +48,7 @@ void WaveformDisplay::paint (juce::Graphics& g)
     const int visibleSamples = std::max (1, endSample - startSample);
     const float width = bounds.getWidth();
     const float height = bounds.getHeight();
-    const float midY = bounds.getCentreY();
+    // midY already declared above
 
     // Draw waveform
     juce::Path wavePath;

@@ -4,19 +4,20 @@ InstaDrumsEditor::InstaDrumsEditor (InstaDrumsProcessor& p)
     : AudioProcessorEditor (&p), processor (p)
 {
     setLookAndFeel (&customLookAndFeel);
+    juce::LookAndFeel::setDefaultLookAndFeel (&customLookAndFeel);
 
     // Title
-    titleLabel.setFont (juce::FontOptions (20.0f, juce::Font::bold));
+    titleLabel.setFont (customLookAndFeel.getBoldFont (25.0f));
     titleLabel.setColour (juce::Label::textColourId, InstaDrumsLookAndFeel::accent);
     titleLabel.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (titleLabel);
 
-    versionLabel.setFont (juce::FontOptions (10.0f));
+    versionLabel.setFont (juce::FontOptions (12.5f));
     versionLabel.setColour (juce::Label::textColourId, InstaDrumsLookAndFeel::textSecondary);
     versionLabel.setJustificationType (juce::Justification::centredRight);
     addAndMakeVisible (versionLabel);
 
-    padsLabel.setFont (juce::FontOptions (10.0f, juce::Font::bold));
+    padsLabel.setFont (juce::FontOptions (12.5f, juce::Font::bold));
     padsLabel.setColour (juce::Label::textColourId, InstaDrumsLookAndFeel::textSecondary);
     addAndMakeVisible (padsLabel);
 
@@ -108,6 +109,7 @@ InstaDrumsEditor::InstaDrumsEditor (InstaDrumsProcessor& p)
 
 InstaDrumsEditor::~InstaDrumsEditor()
 {
+    juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
 }
 
@@ -145,14 +147,30 @@ void InstaDrumsEditor::selectPad (int index)
 
 void InstaDrumsEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (InstaDrumsLookAndFeel::bgDark);
+    // Background gradient
+    juce::ColourGradient bgGrad (InstaDrumsLookAndFeel::bgDark, 0, 0,
+                                  InstaDrumsLookAndFeel::bgDark.darker (0.3f), 0, (float) getHeight(), false);
+    g.setGradientFill (bgGrad);
+    g.fillAll();
 
-    // Subtle divider lines
+    // Noise texture overlay
+    customLookAndFeel.drawBackgroundTexture (g, getLocalBounds());
+
+    // Top header bar
+    float sc = (float) getHeight() / 600.0f;
+    int topH = std::max (28, (int) (36 * sc));
+    g.setColour (InstaDrumsLookAndFeel::bgDark.darker (0.4f));
+    g.fillRect (0, 0, getWidth(), topH);
+    g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.3f));
+    g.drawHorizontalLine (topH, 0, (float) getWidth());
+
+    // Divider lines
     auto bounds = getLocalBounds();
     int rightPanelX = (int) (bounds.getWidth() * 0.52f);
-    int bottomPanelY = bounds.getHeight() - 56;
+    int masterH = std::max (44, (int) (60 * sc));
+    int bottomPanelY = bounds.getHeight() - masterH - 4;
 
-    g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.3f));
+    g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.4f));
     g.drawVerticalLine (rightPanelX - 2, 30, (float) bottomPanelY);
     g.drawHorizontalLine (bottomPanelY - 1, 0, (float) bounds.getWidth());
 }
@@ -160,25 +178,38 @@ void InstaDrumsEditor::paint (juce::Graphics& g)
 void InstaDrumsEditor::resized()
 {
     auto area = getLocalBounds();
+    float scale = (float) getHeight() / 600.0f;
 
-    // Top bar (30px)
-    auto topBar = area.removeFromTop (30).reduced (6, 4);
-    titleLabel.setBounds (topBar.removeFromLeft (150));
-    versionLabel.setBounds (topBar.removeFromRight (40));
-    loadFolderButton.setBounds (topBar.removeFromRight (90).reduced (1));
-    loadKitButton.setBounds (topBar.removeFromRight (70).reduced (1));
-    saveKitButton.setBounds (topBar.removeFromRight (70).reduced (1));
-    loadSampleButton.setBounds (topBar.removeFromRight (95).reduced (1));
+    // Top bar
+    int topBarH = std::max (28, (int) (36 * scale));
+    auto topBar = area.removeFromTop (topBarH).reduced (8, 4);
 
-    // Bottom master bar (52px)
-    masterPanel.setBounds (area.removeFromBottom (52).reduced (4, 2));
+    float titleSize = std::max (18.0f, 26.0f * scale);
+    titleLabel.setFont (customLookAndFeel.getBoldFont (titleSize));
+    titleLabel.setBounds (topBar.removeFromLeft ((int) (180 * scale)));
+
+    float smallSize = std::max (10.0f, 13.0f * scale);
+    versionLabel.setFont (juce::FontOptions (smallSize));
+    versionLabel.setBounds (topBar.removeFromRight ((int) (50 * scale)));
+
+    int btnW = std::max (60, (int) (90 * scale));
+    loadFolderButton.setBounds (topBar.removeFromRight (btnW).reduced (2));
+    loadKitButton.setBounds (topBar.removeFromRight ((int) (btnW * 0.8f)).reduced (2));
+    saveKitButton.setBounds (topBar.removeFromRight ((int) (btnW * 0.8f)).reduced (2));
+    loadSampleButton.setBounds (topBar.removeFromRight (btnW).reduced (2));
+
+    // Bottom master bar
+    int masterH = std::max (44, (int) (60 * scale));
+    masterPanel.setBounds (area.removeFromBottom (masterH).reduced (4, 2));
 
     // Left panel: pad grid (~52% width)
     int rightPanelX = (int) (area.getWidth() * 0.52f);
-    auto leftArea = area.removeFromLeft (rightPanelX).reduced (4);
+    auto leftArea = area.removeFromLeft (rightPanelX).reduced (6);
 
     // Pads label
-    auto padsHeader = leftArea.removeFromTop (16);
+    int padsLabelH = (int) (20 * scale);
+    padsLabel.setFont (juce::FontOptions (std::max (11.0f, 14.0f * scale), juce::Font::bold));
+    auto padsHeader = leftArea.removeFromTop (padsLabelH);
     padsLabel.setBounds (padsHeader);
 
     // Pad grid
