@@ -1,0 +1,7 @@
+build/
+Samples/
+*.user
+*.suo
+.vs/
+CMakeSettings.json
+out/
