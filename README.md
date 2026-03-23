@@ -4,6 +4,15 @@ Free, open-source VST3 drum sampler plugin built with JUCE.
 
 ![VST3](https://img.shields.io/badge/format-VST3-blue) ![C++](https://img.shields.io/badge/language-C%2B%2B17-orange) ![JUCE](https://img.shields.io/badge/framework-JUCE-green) ![License](https://img.shields.io/badge/license-GPL--3.0-lightgrey)
 
+## Download
+
+**[Latest Release: v1.1](https://github.com/hariel1985/InstaDrums/releases/tag/v1.1)**
+
+| File | Description |
+|------|-------------|
+| [InstaDrums-v1.1-VST3-Win64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-v1.1-VST3-Win64.zip) | VST3 plugin (copy to `C:\Program Files\Common Files\VST3\`) |
+| [InstaDrums-v1.1-Standalone-Win64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-v1.1-Standalone-Win64.zip) | Standalone application |
+
 ## Features
 
 ### Sampler

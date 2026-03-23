@@ -39,7 +39,7 @@ private:
     juce::TextButton loadFolderButton { "LOAD FOLDER" };
 
     juce::Label titleLabel { {}, "INSTADRUMS" };
-    juce::Label versionLabel { {}, "v1.0" };
+    juce::Label versionLabel { {}, "v1.1" };
     juce::Label padsLabel { {}, "DRUM SAMPLER" };
 
     // State
