@@ -27,7 +27,11 @@ Free, open-source VST3 drum sampler plugin built with JUCE.
 | [InstaDrums-VST3-Linux-x64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-VST3-Linux-x64.zip) | VST3 plugin — copy to `~/.vst3/` |
 | [InstaDrums-Standalone-Linux-x64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-Standalone-Linux-x64.zip) | Standalone application |
 
-> **Note:** macOS builds are Universal Binary (Apple Silicon + Intel). Not code-signed — on first launch right-click → Open to bypass Gatekeeper.
+> **macOS note:** Builds are Universal Binary (Apple Silicon + Intel). Not code-signed — after copying the plugin, remove the quarantine flag in Terminal:
+> ```bash
+> xattr -cr ~/Library/Audio/Plug-Ins/VST3/InstaDrums.vst3
+> xattr -cr ~/Library/Audio/Plug-Ins/Components/InstaDrums.component
+> ```
 
 ## Features
 
