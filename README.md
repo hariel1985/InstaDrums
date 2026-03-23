@@ -1,8 +1,8 @@
 # InstaDrums
 
-Free, open-source VST3 drum sampler plugin built with JUCE.
+Free, open-source drum sampler plugin built with JUCE. Available as VST3, AU, LV2 and Standalone.
 
-![VST3](https://img.shields.io/badge/format-VST3-blue) ![C++](https://img.shields.io/badge/language-C%2B%2B17-orange) ![JUCE](https://img.shields.io/badge/framework-JUCE-green) ![License](https://img.shields.io/badge/license-GPL--3.0-lightgrey)
+![VST3](https://img.shields.io/badge/format-VST3-blue) ![AU](https://img.shields.io/badge/format-AU-blue) ![LV2](https://img.shields.io/badge/format-LV2-blue) ![C++](https://img.shields.io/badge/language-C%2B%2B17-orange) ![JUCE](https://img.shields.io/badge/framework-JUCE-green) ![License](https://img.shields.io/badge/license-GPL--3.0-lightgrey) ![Build](https://github.com/hariel1985/InstaDrums/actions/workflows/build.yml/badge.svg)
 
 ## Download
 
@@ -25,6 +25,7 @@ Free, open-source VST3 drum sampler plugin built with JUCE.
 | File | Description |
 |------|-------------|
 | [InstaDrums-VST3-Linux-x64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-VST3-Linux-x64.zip) | VST3 plugin — copy to `~/.vst3/` |
+| [InstaDrums-LV2-Linux-x64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-LV2-Linux-x64.zip) | LV2 plugin — copy to `~/.lv2/` |
 | [InstaDrums-Standalone-Linux-x64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-Standalone-Linux-x64.zip) | Standalone application |
 
 > **macOS note:** Builds are Universal Binary (Apple Silicon + Intel). Not code-signed — after copying the plugin, remove the quarantine flag in Terminal:
