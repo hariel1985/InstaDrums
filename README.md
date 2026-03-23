@@ -1,0 +1,86 @@
+# InstaDrums
+
+Free, open-source VST3 drum sampler plugin built with JUCE.
+
+![VST3](https://img.shields.io/badge/format-VST3-blue) ![C++](https://img.shields.io/badge/language-C%2B%2B17-orange) ![JUCE](https://img.shields.io/badge/framework-JUCE-green) ![License](https://img.shields.io/badge/license-GPL--3.0-lightgrey)
+
+## Features
+
+### Sampler
+- 12 pads (4x3 grid), expandable by 4
+- Velocity layers with round-robin (auto-detected from filenames: Ghost/PP/P/MP/F/FF)
+- Drag & drop sample loading (single files or folders)
+- WAV, AIFF, FLAC, OGG, MP3 support
+- Kit presets (save/load .drumkit files)
+- Smart folder loading with name matching (kick, snare, hihat, etc.)
+- General MIDI drum mapping with configurable MIDI notes
+- Choke groups, one-shot / polyphonic mode per pad
+
+### Per-Pad Controls
+- Volume, Pan, Pitch (+/- 24 semitones)
+- ADSR envelope (Attack, Decay, Sustain, Release)
+- Low-pass filter (Cutoff + Resonance)
+
+### Per-Pad FX
+- Compressor (Threshold, Ratio) with GR meter
+- 3-band EQ (Lo / Mid / Hi, +/- 12dB)
+- Distortion (Drive, Mix) - tanh waveshaper
+- Reverb (Size, Decay)
+- Each FX toggleable with animated switches
+
+### Master Bus
+- Master Volume, Tune, Pan
+- Output Limiter (0dB brickwall, toggleable)
+- VU meter with peak hold
+
+### GUI
+- Dark modern UI inspired by hardware drum machines
+- 3D metal knobs with glow effects (orange for sample controls, blue for FX)
+- Waveform thumbnails on pads + large waveform in sample editor
+- ADSR curve overlay on waveform
+- Carbon fiber background texture
+- Rajdhani custom font
+- Fully resizable window with proportional scaling
+- Animated toggle switches
+
+## Building
+
+### Requirements
+- Windows 10/11
+- Visual Studio 2022 Build Tools (C++ workload)
+- CMake 3.22+
+- JUCE framework (cloned to `../JUCE` relative to project)
+
+### Build Steps
+
+```bash
+git clone https://github.com/juce-framework/JUCE.git ../JUCE
+cmake -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Release
+```
+
+Output:
+- VST3: `build/InstaDrums_artefacts/Release/VST3/InstaDrums.vst3`
+- Standalone: `build/InstaDrums_artefacts/Release/Standalone/InstaDrums.exe`
+
+### Install
+
+Copy the VST3 to the standard location:
+```
+xcopy /E /I /Y "build\InstaDrums_artefacts\Release\VST3\InstaDrums.vst3" "C:\Program Files\Common Files\VST3\InstaDrums.vst3"
+```
+
+## Sample Packs
+
+The plugin ships without samples. Recommended free sample packs:
+- [Salamander Drumkit](https://github.com/studiorack/salamander-drumkit) (CC0, acoustic, multi-velocity)
+- [Free Wave Samples](https://freewavesamples.com/sample-type/drums) (royalty-free)
+- [Samples From Mars](https://samplesfrommars.com/collections/free) (free drum machine kits)
+
+## Tech Stack
+
+- **Language:** C++17
+- **Framework:** JUCE 8
+- **Build:** CMake + MSVC 2022
+- **Audio DSP:** juce::dsp (IIR filters, Compressor, Reverb)
+- **Font:** Rajdhani (SIL Open Font License)
