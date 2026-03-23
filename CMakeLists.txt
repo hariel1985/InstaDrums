@@ -14,6 +14,7 @@ juce_add_plugin(InstaDrums
     PLUGIN_MANUFACTURER_CODE Inst
     PLUGIN_CODE Idrm
     FORMATS VST3 AU LV2 Standalone
+    LV2URI "https://github.com/hariel1985/InstaDrums"
     PRODUCT_NAME "InstaDrums"
     COPY_PLUGIN_AFTER_BUILD FALSE
 )
