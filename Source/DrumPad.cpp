@@ -6,14 +6,29 @@ DrumPad::~DrumPad() {}
 void DrumPad::prepareToPlay (double sr, int samplesPerBlock)
 {
     sampleRate = sr;
+    blockSize = samplesPerBlock;
 
-    // Prepare per-pad filter
-    juce::dsp::ProcessSpec spec { sr, (juce::uint32) samplesPerBlock, 1 };
-    filterL.prepare (spec);
-    filterR.prepare (spec);
-    filterL.reset();
-    filterR.reset();
+    tempBuffer.setSize (2, samplesPerBlock);
+
+    // Per-pad filter
+    juce::dsp::ProcessSpec monoSpec { sr, (juce::uint32) samplesPerBlock, 1 };
+    filterL.prepare (monoSpec); filterR.prepare (monoSpec);
+    filterL.reset(); filterR.reset();
     lastCutoff = filterCutoff;
+
+    // Per-pad FX
+    juce::dsp::ProcessSpec stereoSpec { sr, (juce::uint32) samplesPerBlock, 2 };
+    padCompressor.prepare (stereoSpec);
+    padCompressor.reset();
+    padReverb.prepare (stereoSpec);
+    padReverb.reset();
+
+    padEqLoL.prepare (monoSpec);  padEqLoR.prepare (monoSpec);
+    padEqMidL.prepare (monoSpec); padEqMidR.prepare (monoSpec);
+    padEqHiL.prepare (monoSpec);  padEqHiR.prepare (monoSpec);
+    padEqLoL.reset();  padEqLoR.reset();
+    padEqMidL.reset(); padEqMidR.reset();
+    padEqHiL.reset();  padEqHiR.reset();
 }
 
 void DrumPad::releaseResources()
@@ -335,6 +350,12 @@ void DrumPad::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
     if (! playing || activeSample == nullptr)
         return;
 
+    // Ensure temp buffer is large enough
+    if (tempBuffer.getNumSamples() < numSamples)
+        tempBuffer.setSize (2, numSamples, false, false, true);
+
+    tempBuffer.clear (0, numSamples);
+
     const auto& sampleBuffer = activeSample->buffer;
     const int sampleLength = sampleBuffer.getNumSamples();
     const int srcChannels = sampleBuffer.getNumChannels();
@@ -348,7 +369,7 @@ void DrumPad::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
     float rightGain = std::sin (panPos * juce::MathConstants<float>::halfPi);
 
     // Update filter coefficients if cutoff changed
-    if (std::abs (filterCutoff - lastCutoff) > 1.0f || std::abs (filterReso - filterL.coefficients->coefficients[0]) > 0.01f)
+    if (std::abs (filterCutoff - lastCutoff) > 1.0f)
     {
         float clampedCutoff = juce::jlimit (20.0f, (float) (sampleRate * 0.49), filterCutoff);
         auto coeffs = juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, clampedCutoff, filterReso);
@@ -357,8 +378,9 @@ void DrumPad::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
         lastCutoff = filterCutoff;
     }
 
-    bool useFilter = filterCutoff < 19900.0f; // Skip filter if fully open
+    bool useFilter = filterCutoff < 19900.0f;
 
+    // Render into temp buffer
     for (int i = 0; i < numSamples; ++i)
     {
         if (! playing) break;
@@ -388,23 +410,119 @@ void DrumPad::renderNextBlock (juce::AudioBuffer<float>& outputBuffer, int start
             int pos1 = std::min (pos0 + 1, sampleLength - 1);
             float frac = (float) (readPosition - (double) pos0);
 
-            for (int ch = 0; ch < outputBuffer.getNumChannels(); ++ch)
+            for (int ch = 0; ch < 2; ++ch)
             {
                 int srcCh = std::min (ch, srcChannels - 1);
                 float s0 = sampleBuffer.getSample (srcCh, pos0);
                 float s1 = sampleBuffer.getSample (srcCh, pos1);
                 float sampleVal = s0 + frac * (s1 - s0);
 
-                // Apply per-pad filter
                 if (useFilter)
                     sampleVal = (ch == 0) ? filterL.processSample (sampleVal)
                                           : filterR.processSample (sampleVal);
 
                 float channelGain = (ch == 0) ? leftGain : rightGain;
-                outputBuffer.addSample (ch, startSample + i, sampleVal * gain * channelGain);
+                tempBuffer.setSample (ch, i, sampleVal * gain * channelGain);
             }
         }
 
         readPosition += pitchRatio;
+    }
+
+    // Apply per-pad FX chain to temp buffer
+    applyPadFx (tempBuffer, numSamples);
+
+    // Mix temp buffer into output
+    for (int ch = 0; ch < outputBuffer.getNumChannels(); ++ch)
+        outputBuffer.addFrom (ch, startSample, tempBuffer, std::min (ch, 1), 0, numSamples);
+}
+
+// ============================================================
+// Per-pad FX chain
+// ============================================================
+
+void DrumPad::applyPadFx (juce::AudioBuffer<float>& buf, int numSamples)
+{
+    // --- Distortion ---
+    if (fxDistEnabled && fxDistDrive > 0.001f && fxDistMix > 0.001f)
+    {
+        float driveGain = 1.0f + fxDistDrive * 20.0f;
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+        {
+            float* data = buf.getWritePointer (ch);
+            for (int i = 0; i < numSamples; ++i)
+            {
+                float dry = data[i];
+                float wet = std::tanh (dry * driveGain) / std::tanh (driveGain);
+                data[i] = dry * (1.0f - fxDistMix) + wet * fxDistMix;
+            }
+        }
+    }
+
+    // --- EQ ---
+    if (fxEqEnabled && (std::abs (fxEqLo) > 0.1f || std::abs (fxEqMid) > 0.1f || std::abs (fxEqHi) > 0.1f))
+    {
+        auto loC  = juce::dsp::IIR::Coefficients<float>::makeLowShelf  (sampleRate, 200.0, 0.707f, juce::Decibels::decibelsToGain (fxEqLo));
+        auto midC = juce::dsp::IIR::Coefficients<float>::makePeakFilter (sampleRate, 1000.0, 1.0f, juce::Decibels::decibelsToGain (fxEqMid));
+        auto hiC  = juce::dsp::IIR::Coefficients<float>::makeHighShelf (sampleRate, 5000.0, 0.707f, juce::Decibels::decibelsToGain (fxEqHi));
+
+        *padEqLoL.coefficients = *loC;   *padEqLoR.coefficients = *loC;
+        *padEqMidL.coefficients = *midC; *padEqMidR.coefficients = *midC;
+        *padEqHiL.coefficients = *hiC;   *padEqHiR.coefficients = *hiC;
+
+        float* L = buf.getWritePointer (0);
+        float* R = buf.getWritePointer (1);
+        for (int i = 0; i < numSamples; ++i)
+        {
+            L[i] = padEqHiL.processSample (padEqMidL.processSample (padEqLoL.processSample (L[i])));
+            R[i] = padEqHiR.processSample (padEqMidR.processSample (padEqLoR.processSample (R[i])));
+        }
+    }
+
+    // --- Compressor ---
+    if (fxCompEnabled)
+    {
+        float peakLevel = 0.0f;
+        for (int ch = 0; ch < buf.getNumChannels(); ++ch)
+            peakLevel = std::max (peakLevel, buf.getMagnitude (ch, 0, numSamples));
+        float inputDb = juce::Decibels::gainToDecibels (peakLevel, -80.0f);
+
+        float gr = 0.0f;
+        if (inputDb > fxCompThreshold && fxCompRatio > 1.0f)
+            gr = (inputDb - fxCompThreshold) * (1.0f - 1.0f / fxCompRatio);
+
+        float prevGr = std::abs (compGainReduction.load());
+        if (gr > prevGr)
+            compGainReduction.store (-(prevGr * 0.3f + gr * 0.7f));
+        else
+            compGainReduction.store (-(prevGr * 0.92f + gr * 0.08f));
+
+        padCompressor.setThreshold (fxCompThreshold);
+        padCompressor.setRatio (fxCompRatio);
+        padCompressor.setAttack (10.0f);
+        padCompressor.setRelease (100.0f);
+        juce::dsp::AudioBlock<float> block (buf);
+        juce::dsp::ProcessContextReplacing<float> ctx (block);
+        padCompressor.process (ctx);
+    }
+    else
+    {
+        float prev = std::abs (compGainReduction.load());
+        compGainReduction.store (-(prev * 0.9f));
+    }
+
+    // --- Reverb ---
+    if (fxReverbEnabled && (fxReverbSize > 0.01f || fxReverbDecay > 0.01f))
+    {
+        juce::dsp::Reverb::Parameters rp;
+        rp.roomSize = fxReverbSize;
+        rp.damping  = 1.0f - fxReverbDecay;
+        rp.wetLevel = fxReverbSize * 0.5f;
+        rp.dryLevel = 1.0f;
+        rp.width    = 1.0f;
+        padReverb.setParameters (rp);
+        juce::dsp::AudioBlock<float> block (buf);
+        juce::dsp::ProcessContextReplacing<float> ctx (block);
+        padReverb.process (ctx);
     }
 }

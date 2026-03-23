@@ -142,7 +142,10 @@ void InstaDrumsEditor::selectPad (int index)
         padComponents[i]->setSelected (i == index);
 
     if (index >= 0 && index < processor.getNumPads())
+    {
         sampleEditor.setPad (&processor.getPad (index));
+        fxPanel.setPad (&processor.getPad (index));
+    }
 }
 
 void InstaDrumsEditor::paint (juce::Graphics& g)
@@ -167,7 +170,7 @@ void InstaDrumsEditor::paint (juce::Graphics& g)
     // Divider lines
     auto bounds = getLocalBounds();
     int rightPanelX = (int) (bounds.getWidth() * 0.52f);
-    int masterH = std::max (44, (int) (60 * sc));
+    int masterH = std::max (50, (int) (65 * sc));
     int bottomPanelY = bounds.getHeight() - masterH - 4;
 
     g.setColour (InstaDrumsLookAndFeel::bgLight.withAlpha (0.4f));
@@ -199,7 +202,7 @@ void InstaDrumsEditor::resized()
     loadSampleButton.setBounds (topBar.removeFromRight (btnW).reduced (2));
 
     // Bottom master bar
-    int masterH = std::max (44, (int) (60 * scale));
+    int masterH = std::max (50, (int) (65 * scale));
     masterPanel.setBounds (area.removeFromBottom (masterH).reduced (4, 2));
 
     // Left panel: pad grid (~52% width)
@@ -242,22 +245,19 @@ void InstaDrumsEditor::timerCallback()
     for (auto* pc : padComponents)
         pc->repaint();
 
-    // Sync FX panel knobs -> processor atomic params
-    processor.compThreshold.store (fxPanel.getCompThreshold());
-    processor.compRatio.store     (fxPanel.getCompRatio());
-    processor.eqLo.store          (fxPanel.getEqLo());
-    processor.eqMid.store         (fxPanel.getEqMid());
-    processor.eqHi.store          (fxPanel.getEqHi());
-    processor.distDrive.store     (fxPanel.getDistDrive());
-    processor.distMix.store       (fxPanel.getDistMix());
-    processor.reverbSize.store    (fxPanel.getReverbSize());
-    processor.reverbDecay.store   (fxPanel.getReverbDecay());
+    // Sync FX panel knobs -> selected pad's FX params
+    fxPanel.syncToPad();
+
+    // Update per-pad compressor GR meter
+    if (selectedPadIndex >= 0 && selectedPadIndex < processor.getNumPads())
+        fxPanel.setCompGainReduction (processor.getPad (selectedPadIndex).compGainReduction.load());
 
     // Sync master panel -> processor
-    processor.masterVolume.store (masterPanel.getMasterVolume());
-    processor.masterPan.store    (masterPanel.getMasterPan());
-    processor.masterTune.store   (masterPanel.getMasterTune());
+    processor.masterVolume.store        (masterPanel.getMasterVolume());
+    processor.masterPan.store           (masterPanel.getMasterPan());
+    processor.masterTune.store          (masterPanel.getMasterTune());
+    processor.outputLimiterEnabled.store (masterPanel.isLimiterEnabled());
 
-    // Update VU meter from processor
+    // Update VU meter
     masterPanel.getVuMeter().setLevel (processor.vuLevelL.load(), processor.vuLevelR.load());
 }

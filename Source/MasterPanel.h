@@ -13,6 +13,7 @@ public:
     float getMasterVolume() const { return (float) volumeSlider.getValue(); }
     float getMasterTune()   const { return (float) tuneSlider.getValue(); }
     float getMasterPan()    const { return (float) panSlider.getValue(); }
+    bool  isLimiterEnabled() const { return limiterToggle.getToggleState(); }
 
     VuMeter& getVuMeter() { return vuMeter; }
 
@@ -20,6 +21,10 @@ private:
     juce::Slider volumeSlider, tuneSlider, panSlider;
     juce::Label  volumeLabel, tuneLabel, panLabel;
     juce::Label  masterTitle { {}, "MASTER" };
+
+    juce::ToggleButton limiterToggle;
+    juce::Label limiterLabel { {}, "LIMITER" };
+
     VuMeter vuMeter;
 
     void setupKnob (juce::Slider& s, juce::Label& l, const juce::String& name,

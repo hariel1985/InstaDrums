@@ -26,6 +26,10 @@ public:
                                bool shouldDrawButtonAsHighlighted,
                                bool shouldDrawButtonAsDown) override;
 
+    void drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,
+                           bool shouldDrawButtonAsHighlighted,
+                           bool shouldDrawButtonAsDown) override;
+
     // Custom fonts
     juce::Font getRegularFont (float height) const;
     juce::Font getMediumFont (float height) const;

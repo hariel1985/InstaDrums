@@ -131,30 +131,31 @@ void InstaDrumsLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, i
                                                     juce::PathStrokeType::rounded));
     }
 
-    // 3. Outer arc value with scaled glow
+    // 3. Outer arc value with smooth multi-layer glow
     if (sliderPos > 0.01f)
     {
         juce::Path arcVal;
         arcVal.addCentredArc (cx, cy, radius - 1, radius - 1, 0.0f,
                                rotaryStartAngle, angle, true);
 
-        // Glow layers (scale with knob size)
-        g.setColour (arcColour.withAlpha (0.08f));
-        g.strokePath (arcVal, juce::PathStrokeType (glowW1, juce::PathStrokeType::curved,
-                                                     juce::PathStrokeType::rounded));
-        g.setColour (arcColour.withAlpha (0.15f));
-        g.strokePath (arcVal, juce::PathStrokeType (glowW2, juce::PathStrokeType::curved,
-                                                     juce::PathStrokeType::rounded));
-        g.setColour (arcColour.withAlpha (0.3f));
-        g.strokePath (arcVal, juce::PathStrokeType (glowW3, juce::PathStrokeType::curved,
-                                                     juce::PathStrokeType::rounded));
+        // Smooth glow: 8 layers from wide/faint to narrow/bright
+        const int numGlowLayers = 8;
+        for (int i = 0; i < numGlowLayers; ++i)
+        {
+            float t = (float) i / (float) (numGlowLayers - 1); // 0.0 (outermost) to 1.0 (innermost)
+            float layerWidth = glowW1 * (1.0f - t * 0.7f);     // wide -> narrow
+            float layerAlpha = 0.03f + t * t * 0.35f;           // exponential: faint -> bright
+            g.setColour (arcColour.withAlpha (layerAlpha));
+            g.strokePath (arcVal, juce::PathStrokeType (layerWidth, juce::PathStrokeType::curved,
+                                                         juce::PathStrokeType::rounded));
+        }
 
-        // Core arc
+        // Core arc (full brightness)
         g.setColour (arcColour);
         g.strokePath (arcVal, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
                                                      juce::PathStrokeType::rounded));
 
-        // Hot center
+        // Hot center (white-ish)
         g.setColour (arcColour.brighter (0.6f).withAlpha (0.5f));
         g.strokePath (arcVal, juce::PathStrokeType (hotW, juce::PathStrokeType::curved,
                                                      juce::PathStrokeType::rounded));
@@ -191,37 +192,32 @@ void InstaDrumsLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, i
         g.fillEllipse (cx - hlRadius, hlY - hlRadius * 0.6f, hlRadius * 2, hlRadius * 1.2f);
     }
 
-    // 8. Pointer with scaled glow
+    // 8. Pointer with subtle glow (half intensity)
     {
-        juce::Path pointer;
         float pointerLen = bodyRadius * 0.75f;
 
-        pointer.addRoundedRectangle (-ptrW * 0.5f, -pointerLen, ptrW, pointerLen * 0.55f, ptrW * 0.5f);
-        pointer.applyTransform (juce::AffineTransform::rotation (angle).translated (cx, cy));
-
-        // Wide outer glow
-        g.setColour (pointerColour.withAlpha (0.1f));
+        // Smooth glow: 4 layers, half the width
+        for (int i = 0; i < 4; ++i)
         {
-            juce::Path glow3;
-            float gw = ptrW * 3.5f;
-            glow3.addRoundedRectangle (-gw, -pointerLen, gw * 2, pointerLen * 0.55f, ptrW * 1.5f);
-            glow3.applyTransform (juce::AffineTransform::rotation (angle).translated (cx, cy));
-            g.fillPath (glow3);
-        }
+            float t = (float) i / 3.0f;
+            float gw = ptrW * (2.0f - t * 1.5f); // narrower spread
+            float alpha = 0.02f + t * t * 0.15f;  // lower opacity
 
-        // Medium glow
-        g.setColour (pointerColour.withAlpha (0.25f));
-        {
-            juce::Path glow2;
-            float gw = ptrW * 2.0f;
-            glow2.addRoundedRectangle (-gw, -pointerLen, gw * 2, pointerLen * 0.55f, ptrW);
-            glow2.applyTransform (juce::AffineTransform::rotation (angle).translated (cx, cy));
-            g.fillPath (glow2);
+            juce::Path glowLayer;
+            glowLayer.addRoundedRectangle (-gw, -pointerLen, gw * 2, pointerLen * 0.55f, gw * 0.5f);
+            glowLayer.applyTransform (juce::AffineTransform::rotation (angle).translated (cx, cy));
+            g.setColour (pointerColour.withAlpha (alpha));
+            g.fillPath (glowLayer);
         }
 
         // Core pointer
-        g.setColour (pointerColour);
-        g.fillPath (pointer);
+        {
+            juce::Path pointer;
+            pointer.addRoundedRectangle (-ptrW * 0.5f, -pointerLen, ptrW, pointerLen * 0.55f, ptrW * 0.5f);
+            pointer.applyTransform (juce::AffineTransform::rotation (angle).translated (cx, cy));
+            g.setColour (pointerColour);
+            g.fillPath (pointer);
+        }
 
         // Hot center
         {
@@ -268,4 +264,101 @@ void InstaDrumsLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Butto
 
     g.setColour (bgLight.withAlpha (shouldDrawButtonAsHighlighted ? 0.8f : 0.5f));
     g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
+}
+
+// ============================================================
+// Toggle button — glowing radio dot
+// ============================================================
+
+void InstaDrumsLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,
+                                               bool shouldDrawButtonAsHighlighted,
+                                               bool /*shouldDrawButtonAsDown*/)
+{
+    auto bounds = button.getLocalBounds().toFloat();
+    float h = std::min (bounds.getHeight() * 0.6f, 14.0f);
+    float w = h * 1.8f;
+    float trackR = h * 0.5f;
+
+    // Center the switch in the component
+    float sx = bounds.getX() + (bounds.getWidth() - w) * 0.5f;
+    float sy = bounds.getCentreY() - h * 0.5f;
+    auto trackBounds = juce::Rectangle<float> (sx, sy, w, h);
+
+    bool isOn = button.getToggleState();
+    auto onColour = accent;
+    auto offColour = bgLight;
+
+    // Animated thumb position (stored as component property, lerps each frame)
+    float targetPos = isOn ? 1.0f : 0.0f;
+    float animPos = (float) button.getProperties().getWithDefault ("animPos", targetPos);
+    animPos += (targetPos - animPos) * 0.25f; // smooth lerp
+    if (std::abs (animPos - targetPos) < 0.01f) animPos = targetPos;
+    button.getProperties().set ("animPos", animPos);
+
+    // Trigger repaint if still animating
+    if (std::abs (animPos - targetPos) > 0.005f)
+        button.repaint();
+
+    float thumbR = h * 0.4f;
+    float thumbX = sx + trackR + animPos * (w - trackR * 2);
+    float thumbY = sy + h * 0.5f;
+    float glowIntensity = animPos; // 0 = off, 1 = full glow
+
+    // Track glow (intensity follows animation)
+    if (glowIntensity > 0.01f)
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            float t = (float) i / 2.0f;
+            float expand = (1.0f - t) * 1.5f;
+            float alpha = (0.04f + t * t * 0.1f) * glowIntensity;
+            g.setColour (onColour.withAlpha (alpha));
+            g.fillRoundedRectangle (trackBounds.expanded (expand), trackR + expand);
+        }
+    }
+
+    // Track background (blend between off/on colours)
+    {
+        juce::Colour offCol = offColour.withAlpha (0.3f);
+        juce::Colour onCol  = onColour.withAlpha (0.35f);
+        juce::Colour trackCol = offCol.interpolatedWith (onCol, glowIntensity);
+        if (shouldDrawButtonAsHighlighted)
+            trackCol = trackCol.brighter (0.15f);
+        g.setColour (trackCol);
+        g.fillRoundedRectangle (trackBounds, trackR);
+
+        g.setColour (offColour.withAlpha (0.4f).interpolatedWith (onColour.withAlpha (0.5f), glowIntensity));
+        g.drawRoundedRectangle (trackBounds, trackR, 0.8f);
+    }
+
+    // Thumb glow (intensity follows animation)
+    if (glowIntensity > 0.01f)
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            float t = (float) i / 2.0f;
+            float r = thumbR * (1.5f - t * 0.5f);
+            float alpha = (0.05f + t * t * 0.12f) * glowIntensity;
+            g.setColour (onColour.withAlpha (alpha));
+            g.fillEllipse (thumbX - r, thumbY - r, r * 2, r * 2);
+        }
+    }
+
+    // Thumb circle (colour blends with animation)
+    {
+        juce::Colour thumbTopOff  (0xff555566), thumbBotOff  (0xff333344);
+        juce::Colour thumbTopOn = onColour.brighter (0.3f), thumbBotOn = onColour.darker (0.2f);
+        juce::ColourGradient thumbGrad (
+            thumbTopOff.interpolatedWith (thumbTopOn, glowIntensity), thumbX, thumbY - thumbR,
+            thumbBotOff.interpolatedWith (thumbBotOn, glowIntensity), thumbX, thumbY + thumbR, false);
+        g.setGradientFill (thumbGrad);
+        g.fillEllipse (thumbX - thumbR, thumbY - thumbR, thumbR * 2, thumbR * 2);
+
+        g.setColour (juce::Colour (0xff666677).withAlpha (0.5f).interpolatedWith (onColour.withAlpha (0.6f), glowIntensity));
+        g.drawEllipse (thumbX - thumbR, thumbY - thumbR, thumbR * 2, thumbR * 2, 0.8f);
+
+        float hlR = thumbR * 0.4f;
+        g.setColour (juce::Colours::white.withAlpha (0.1f + 0.15f * glowIntensity));
+        g.fillEllipse (thumbX - hlR, thumbY - thumbR * 0.6f - hlR * 0.3f, hlR * 2, hlR * 1.2f);
+    }
 }

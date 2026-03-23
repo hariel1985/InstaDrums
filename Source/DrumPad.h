@@ -4,7 +4,6 @@
 class DrumPad
 {
 public:
-    // A single sample with its audio data and source sample rate
     struct Sample
     {
         juce::AudioBuffer<float> buffer;
@@ -12,12 +11,11 @@ public:
         juce::File file;
     };
 
-    // A velocity layer: velocity range + multiple round-robin samples
     struct VelocityLayer
     {
-        float velocityLow  = 0.0f;   // 0.0 - 1.0
+        float velocityLow  = 0.0f;
         float velocityHigh = 1.0f;
-        juce::OwnedArray<Sample> samples;  // round-robin variations
+        juce::OwnedArray<Sample> samples;
         int nextRoundRobin = 0;
 
         Sample* getNextSample()
@@ -35,12 +33,8 @@ public:
     void prepareToPlay (double sampleRate, int samplesPerBlock);
     void releaseResources();
 
-    // Single sample loading (backwards compatible)
     void loadSample (const juce::File& file, juce::AudioFormatManager& formatManager);
-
-    // Velocity layer loading from a folder
     void loadLayersFromFolder (const juce::File& folder, juce::AudioFormatManager& formatManager);
-
     bool hasSample() const;
 
     void trigger (float velocity = 1.0f);
@@ -65,8 +59,29 @@ public:
     float release = 0.05f;
 
     // Per-pad filter
-    float filterCutoff = 20000.0f;  // Hz
-    float filterReso   = 0.707f;    // Q
+    float filterCutoff = 20000.0f;
+    float filterReso   = 0.707f;
+
+    // Per-pad FX parameters
+    bool  fxCompEnabled = false;
+    float fxCompThreshold = -12.0f;
+    float fxCompRatio = 4.0f;
+
+    bool  fxEqEnabled = false;
+    float fxEqLo  = 0.0f;
+    float fxEqMid = 0.0f;
+    float fxEqHi  = 0.0f;
+
+    bool  fxDistEnabled = false;
+    float fxDistDrive = 0.0f;
+    float fxDistMix   = 0.0f;
+
+    bool  fxReverbEnabled = false;
+    float fxReverbSize  = 0.3f;
+    float fxReverbDecay = 0.5f;
+
+    // Compressor GR readout (written by audio, read by GUI)
+    std::atomic<float> compGainReduction { 0.0f };
 
     // State
     bool isPlaying() const { return playing; }
@@ -77,23 +92,25 @@ public:
     const juce::AudioBuffer<float>& getSampleBuffer() const;
 
 private:
-    // Velocity layers (sorted by velocity range)
     juce::OwnedArray<VelocityLayer> layers;
-
-    // Currently playing sample reference
     Sample* activeSample = nullptr;
-
-    // Fallback empty buffer for getSampleBuffer when nothing loaded
     juce::AudioBuffer<float> emptyBuffer;
+    juce::AudioBuffer<float> tempBuffer; // for per-pad FX processing
 
     double sampleRate = 44100.0;
+    int blockSize = 512;
     double readPosition = 0.0;
     bool playing = false;
     float currentVelocity = 1.0f;
 
-    // Per-pad low-pass filter (stereo)
+    // Per-pad filter (stereo)
     juce::dsp::IIR::Filter<float> filterL, filterR;
     float lastCutoff = 20000.0f;
+
+    // Per-pad FX processors
+    juce::dsp::Compressor<float> padCompressor;
+    juce::dsp::IIR::Filter<float> padEqLoL, padEqLoR, padEqMidL, padEqMidR, padEqHiL, padEqHiR;
+    juce::dsp::Reverb padReverb;
 
     // ADSR state
     enum class EnvelopeStage { Idle, Attack, Decay, Sustain, Release };
@@ -105,8 +122,8 @@ private:
 
     void advanceEnvelope();
     VelocityLayer* findLayerForVelocity (float velocity);
+    void applyPadFx (juce::AudioBuffer<float>& buf, int numSamples);
 
-    // Parse velocity tag from filename (e.g. "snare_OH_FF_1" -> FF)
     static float velocityTagToLow (const juce::String& tag);
     static float velocityTagToHigh (const juce::String& tag);
 
