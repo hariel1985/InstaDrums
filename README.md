@@ -8,10 +8,20 @@ Free, open-source VST3 drum sampler plugin built with JUCE.
 
 **[Latest Release: v1.1](https://github.com/hariel1985/InstaDrums/releases/tag/v1.1)**
 
+### Windows
 | File | Description |
 |------|-------------|
-| [InstaDrums-v1.1-VST3-Win64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-v1.1-VST3-Win64.zip) | VST3 plugin (copy to `C:\Program Files\Common Files\VST3\`) |
+| [InstaDrums-v1.1-VST3-Win64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-v1.1-VST3-Win64.zip) | VST3 plugin — copy to `C:\Program Files\Common Files\VST3\` |
 | [InstaDrums-v1.1-Standalone-Win64.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-v1.1-Standalone-Win64.zip) | Standalone application |
+
+### macOS (Universal Binary: Apple Silicon + Intel)
+| File | Description |
+|------|-------------|
+| [InstaDrums-VST3-macOS.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-VST3-macOS.zip) | VST3 plugin — copy to `~/Library/Audio/Plug-Ins/VST3/` |
+| [InstaDrums-AU-macOS.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-AU-macOS.zip) | Audio Unit — copy to `~/Library/Audio/Plug-Ins/Components/` |
+| [InstaDrums-Standalone-macOS.zip](https://github.com/hariel1985/InstaDrums/releases/download/v1.1/InstaDrums-Standalone-macOS.zip) | Standalone application |
+
+> **Note:** macOS builds are Universal Binary (Apple Silicon + Intel). Not code-signed — on first launch right-click → Open to bypass Gatekeeper.
 
 ## Features
 
