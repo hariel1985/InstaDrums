@@ -13,7 +13,7 @@ juce_add_plugin(InstaDrums
     NEEDS_MIDI_OUTPUT TRUE
     PLUGIN_MANUFACTURER_CODE Inst
     PLUGIN_CODE Idrm
-    FORMATS VST3 Standalone
+    FORMATS VST3 AU Standalone
     PRODUCT_NAME "InstaDrums"
     COPY_PLUGIN_AFTER_BUILD FALSE
 )
