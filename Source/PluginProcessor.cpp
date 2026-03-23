@@ -3,7 +3,13 @@
 
 InstaDrumsProcessor::InstaDrumsProcessor()
     : AudioProcessor (BusesProperties()
-                          .withOutput ("Main",  juce::AudioChannelSet::stereo(), true))
+                          .withOutput ("Main",    juce::AudioChannelSet::stereo(), true)
+                          .withOutput ("Kick",    juce::AudioChannelSet::stereo(), true)
+                          .withOutput ("Snare",   juce::AudioChannelSet::stereo(), true)
+                          .withOutput ("HiHat",   juce::AudioChannelSet::stereo(), true)
+                          .withOutput ("Toms",    juce::AudioChannelSet::stereo(), true)
+                          .withOutput ("Cymbals", juce::AudioChannelSet::stereo(), true)
+                          .withOutput ("Perc",    juce::AudioChannelSet::stereo(), true))
 {
     formatManager.registerBasicFormats();
     initializeDefaults();
@@ -11,30 +17,52 @@ InstaDrumsProcessor::InstaDrumsProcessor()
 
 InstaDrumsProcessor::~InstaDrumsProcessor() {}
 
+const char* const InstaDrumsProcessor::outputBusNames[numOutputBuses] = {
+    "Main", "Kick", "Snare", "HiHat", "Toms", "Cymbals", "Perc"
+};
+
+bool InstaDrumsProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
+{
+    // Main output must be stereo
+    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
+        return false;
+
+    // Aux outputs can be stereo or disabled
+    for (int i = 1; i < layouts.outputBuses.size(); ++i)
+    {
+        auto set = layouts.outputBuses[i];
+        if (! set.isDisabled() && set != juce::AudioChannelSet::stereo())
+            return false;
+    }
+    return true;
+}
+
 void InstaDrumsProcessor::initializeDefaults()
 {
     // GM Drum Map defaults for first 12 pads
-    struct PadDefault { int note; const char* name; juce::uint32 colour; };
+    // Bus IDs: 0=Main, 1=Kick, 2=Snare, 3=HiHat, 4=Toms, 5=Cymbals, 6=Perc
+    struct PadDefault { int note; const char* name; juce::uint32 colour; int bus; };
     static const PadDefault defaults[] = {
-        { 36, "Kick",     0xffff4444 },  // Red
-        { 38, "Snare",    0xffff8844 },  // Orange
-        { 42, "CH Hat",   0xffffff44 },  // Yellow
-        { 46, "OH Hat",   0xff88ff44 },  // Green
-        { 45, "Low Tom",  0xff44ffaa },  // Teal
-        { 48, "Mid Tom",  0xff44ddff },  // Cyan
-        { 50, "Hi Tom",   0xff4488ff },  // Blue
-        { 49, "Crash",    0xff8844ff },  // Purple
-        { 51, "Ride",     0xffcc44ff },  // Magenta
-        { 39, "Clap",     0xffff44cc },  // Pink
-        { 56, "Cowbell",  0xffff8888 },  // Light red
-        { 37, "Rimshot",  0xffaaaaff },  // Light blue
+        { 36, "Kick",     0xffff4444, 1 },  // -> Kick bus
+        { 38, "Snare",    0xffff8844, 2 },  // -> Snare bus
+        { 42, "CH Hat",   0xffffff44, 3 },  // -> HiHat bus
+        { 46, "OH Hat",   0xff88ff44, 3 },  // -> HiHat bus
+        { 45, "Low Tom",  0xff44ffaa, 4 },  // -> Toms bus
+        { 48, "Mid Tom",  0xff44ddff, 4 },  // -> Toms bus
+        { 50, "Hi Tom",   0xff4488ff, 4 },  // -> Toms bus
+        { 49, "Crash",    0xff8844ff, 5 },  // -> Cymbals bus
+        { 51, "Ride",     0xffcc44ff, 5 },  // -> Cymbals bus
+        { 39, "Clap",     0xffff44cc, 6 },  // -> Perc bus
+        { 56, "Cowbell",  0xffff8888, 6 },  // -> Perc bus
+        { 37, "Rimshot",  0xffaaaaff, 6 },  // -> Perc bus
     };
 
     for (int i = 0; i < defaultNumPads && i < (int) std::size (defaults); ++i)
     {
-        pads[i].midiNote = defaults[i].note;
-        pads[i].name     = defaults[i].name;
-        pads[i].colour   = juce::Colour (defaults[i].colour);
+        pads[i].midiNote  = defaults[i].note;
+        pads[i].name      = defaults[i].name;
+        pads[i].colour    = juce::Colour (defaults[i].colour);
+        pads[i].outputBus = defaults[i].bus;
     }
 }
 
@@ -88,12 +116,55 @@ void InstaDrumsProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
         }
     }
 
-    // Render audio from all pads
-    for (int i = 0; i < numActivePads; ++i)
-        pads[i].renderNextBlock (buffer, 0, buffer.getNumSamples());
+    const int numSamples = buffer.getNumSamples();
+    const int totalChannels = buffer.getNumChannels();
 
-    // Apply master FX chain
-    applyMasterFx (buffer);
+    // Render each pad to its assigned output bus (or Main if bus inactive)
+    for (int i = 0; i < numActivePads; ++i)
+    {
+        int bus = pads[i].outputBus;
+        int chOffset = 0;
+
+        // Calculate channel offset for the target bus
+        // Each bus is 2 channels (stereo): bus 0 = ch 0-1, bus 1 = ch 2-3, etc.
+        if (bus > 0)
+        {
+            int targetOffset = bus * 2;
+            if (targetOffset + 1 < totalChannels)
+                chOffset = targetOffset;  // Bus is active, use its channels
+            // else: bus not active, chOffset stays 0 (Main)
+        }
+
+        // Render pad into the correct channel pair
+        // We need a temporary view of the buffer at the right offset
+        if (chOffset == 0)
+        {
+            // Render to Main (channels 0-1)
+            pads[i].renderNextBlock (buffer, 0, numSamples);
+        }
+        else
+        {
+            // Create a sub-buffer pointing to the target bus channels
+            float* channelPtrs[2] = {
+                buffer.getWritePointer (chOffset),
+                buffer.getWritePointer (chOffset + 1)
+            };
+            juce::AudioBuffer<float> busBuffer (channelPtrs, 2, numSamples);
+            pads[i].renderNextBlock (busBuffer, 0, numSamples);
+        }
+    }
+
+    // Apply master FX to Main bus only (channels 0-1)
+    if (totalChannels >= 2)
+    {
+        float* mainPtrs[2] = { buffer.getWritePointer (0), buffer.getWritePointer (1) };
+        juce::AudioBuffer<float> mainBuf (mainPtrs, 2, numSamples);
+        applyMasterFx (mainBuf);
+    }
+    else
+    {
+        applyMasterFx (buffer);
+    }
 }
 
 void InstaDrumsProcessor::applyMasterFx (juce::AudioBuffer<float>& buffer)
@@ -131,16 +202,15 @@ void InstaDrumsProcessor::applyMasterFx (juce::AudioBuffer<float>& buffer)
         }
     }
 
-    // --- VU Meter ---
-    float rmsL = 0.0f, rmsR = 0.0f;
+    // --- VU Meter (peak level) ---
+    float peakL = 0.0f, peakR = 0.0f;
     if (buffer.getNumChannels() >= 1)
-        rmsL = buffer.getRMSLevel (0, 0, numSamples);
+        peakL = buffer.getMagnitude (0, 0, numSamples);
     if (buffer.getNumChannels() >= 2)
-        rmsR = buffer.getRMSLevel (1, 0, numSamples);
+        peakR = buffer.getMagnitude (1, 0, numSamples);
 
-    // Smooth VU (simple exponential)
-    vuLevelL.store (vuLevelL.load() * 0.8f + rmsL * 0.2f);
-    vuLevelR.store (vuLevelR.load() * 0.8f + rmsR * 0.2f);
+    vuLevelL.store (peakL);
+    vuLevelR.store (peakR);
 }
 
 DrumPad* InstaDrumsProcessor::findPadForNote (int midiNote)

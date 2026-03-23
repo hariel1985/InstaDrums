@@ -50,6 +50,7 @@ public:
     float pitch = 0.0f;
     bool oneShot = true;
     int chokeGroup = -1;
+    int outputBus = 0;        // 0 = Main, 1 = Kick, 2 = Snare, etc.
     juce::Colour colour { 0xff00ff88 };
 
     // ADSR

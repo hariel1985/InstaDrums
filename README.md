@@ -28,10 +28,16 @@ Free, open-source VST3 drum sampler plugin built with JUCE.
 - Reverb (Size, Decay)
 - Each FX toggleable with animated switches
 
+### Multi-Output Routing
+- 7 stereo output buses: Main, Kick, Snare, HiHat, Toms, Cymbals, Perc
+- Each pad pre-assigned to its bus (configurable)
+- In REAPER: enable additional outputs via routing for separate track processing
+- Pads with inactive buses automatically fall back to Main
+
 ### Master Bus
 - Master Volume, Tune, Pan
 - Output Limiter (0dB brickwall, toggleable)
-- VU meter with peak hold
+- Peak VU meter with hold indicator
 
 ### GUI
 - Dark modern UI inspired by hardware drum machines

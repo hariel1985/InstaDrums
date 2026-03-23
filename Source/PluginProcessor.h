@@ -21,7 +21,12 @@ public:
     const juce::String getName() const override { return JucePlugin_Name; }
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return true; }
+    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     double getTailLengthSeconds() const override { return 0.0; }
+
+    // Output bus names
+    static constexpr int numOutputBuses = 7;
+    static const char* const outputBusNames[numOutputBuses];
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }

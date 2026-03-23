@@ -12,8 +12,9 @@ public:
         if (right > peakR) peakR = right;
         else peakR *= 0.995f;
 
-        levelL = left;
-        levelR = right;
+        // Smooth level (fast attack, medium release)
+        levelL = std::max (left, levelL * 0.85f);
+        levelR = std::max (right, levelR * 0.85f);
         repaint();
     }
 
@@ -28,19 +29,6 @@ public:
 
         drawBar (g, leftBar, levelL, peakL);
         drawBar (g, rightBar, levelR, peakR);
-
-        // Scale markers
-        g.setColour (juce::Colour (0x44ffffff));
-        g.setFont (juce::FontOptions (9.0f));
-        float totalH = getLocalBounds().toFloat().getHeight();
-        // dB markers: 0dB = top, -6, -12, -24, -48
-        float dbLevels[] = { 1.0f, 0.5f, 0.25f, 0.063f, 0.004f };
-        const char* dbLabels[] = { "0", "-6", "-12", "-24", "-48" };
-        for (int i = 0; i < 5; ++i)
-        {
-            float yPos = (1.0f - dbLevels[i]) * totalH;
-            g.drawHorizontalLine ((int) yPos, 0.0f, (float) getWidth());
-        }
     }
 
 private:
@@ -53,14 +41,15 @@ private:
         g.setColour (juce::Colour (0xff111122));
         g.fillRoundedRectangle (bar, 2.0f);
 
-        float clampedLevel = juce::jlimit (0.0f, 1.0f, level);
-        float h = bar.getHeight() * clampedLevel;
+        // Scale level to dB-ish display (boost low levels for visibility)
+        float displayLevel = std::pow (juce::jlimit (0.0f, 1.0f, level), 0.5f);
+        float h = bar.getHeight() * displayLevel;
         auto filled = bar.withTop (bar.getBottom() - h);
 
         // Segmented colour
-        if (clampedLevel < 0.6f)
+        if (displayLevel < 0.6f)
             g.setColour (juce::Colour (0xff00cc44));
-        else if (clampedLevel < 0.85f)
+        else if (displayLevel < 0.85f)
             g.setColour (juce::Colour (0xffcccc00));
         else
             g.setColour (juce::Colour (0xffff3333));
@@ -68,10 +57,10 @@ private:
         g.fillRoundedRectangle (filled, 2.0f);
 
         // Peak hold line
-        float clampedPeak = juce::jlimit (0.0f, 1.0f, peak);
-        if (clampedPeak > 0.01f)
+        float displayPeak = std::pow (juce::jlimit (0.0f, 1.0f, peak), 0.5f);
+        if (displayPeak > 0.01f)
         {
-            float peakY = bar.getBottom() - bar.getHeight() * clampedPeak;
+            float peakY = bar.getBottom() - bar.getHeight() * displayPeak;
             g.setColour (juce::Colours::white.withAlpha (0.8f));
             g.fillRect (bar.getX(), peakY, bar.getWidth(), 1.5f);
         }
