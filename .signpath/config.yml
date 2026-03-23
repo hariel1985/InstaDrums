@@ -1,0 +1,15 @@
+# SignPath configuration for InstaDrums
+# This file defines the signing policy for the project
+
+version: v1
+
+artifact_configurations:
+  - name: windows-vst3
+    signing_policy: release-signing
+    artifact: InstaDrums-VST3-Win64.zip
+    description: "InstaDrums VST3 plugin for Windows x64"
+
+  - name: windows-standalone
+    signing_policy: release-signing
+    artifact: InstaDrums-Standalone-Win64.zip
+    description: "InstaDrums Standalone application for Windows x64"
