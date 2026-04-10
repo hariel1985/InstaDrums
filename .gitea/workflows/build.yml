@@ -1,0 +1,75 @@
+name: Build InstaDrums
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y build-essential cmake git pkg-config \
+            libasound2-dev libfreetype6-dev libx11-dev libxrandr-dev \
+            libxcursor-dev libxinerama-dev libwebkit2gtk-4.1-dev \
+            libcurl4-openssl-dev zip mingw-w64
+
+      - name: Clone JUCE
+        run: git clone --depth 1 https://github.com/juce-framework/JUCE.git ../JUCE
+
+      - name: Configure CMake (Linux)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release (Linux)
+        run: cmake --build build --config Release --parallel $(nproc)
+
+      - name: Package VST3 Linux
+        run: cd build/InstaDrums_artefacts/Release && zip -r $GITHUB_WORKSPACE/InstaDrums-VST3-Linux-x64.zip VST3/InstaDrums.vst3
+
+      - name: Package Standalone Linux
+        run: zip -j InstaDrums-Standalone-Linux-x64.zip build/InstaDrums_artefacts/Release/Standalone/InstaDrums
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-builds
+          path: |
+            InstaDrums-VST3-Linux-x64.zip
+            InstaDrums-Standalone-Linux-x64.zip
+
+  build-macos:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone JUCE
+        run: git clone --depth 1 https://github.com/juce-framework/JUCE.git ../JUCE
+
+      - name: Configure CMake (ARM64)
+        run: cmake -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      - name: Package VST3
+        run: cd build/InstaDrums_artefacts/Release && zip -r $GITHUB_WORKSPACE/InstaDrums-VST3-macOS-ARM64.zip VST3/InstaDrums.vst3
+
+      - name: Package AU
+        run: cd build/InstaDrums_artefacts/Release && zip -r $GITHUB_WORKSPACE/InstaDrums-AU-macOS-ARM64.zip AU/InstaDrums.component
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-builds
+          path: |
+            InstaDrums-VST3-macOS-ARM64.zip
+            InstaDrums-AU-macOS-ARM64.zip
