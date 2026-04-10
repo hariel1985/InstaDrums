@@ -48,14 +48,21 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG=${GITHUB_REF#refs/tags/}
-          # Create release
-          RELEASE_ID=$(curl -s -X POST "${GITEA_URL}/api/v1/repos/${GITEA_REPO}/releases" \
+          # Find existing release or create new one
+          RELEASE_ID=$(curl -s "${GITEA_URL}/api/v1/repos/${GITEA_REPO}/releases/tags/${TAG}" \
             -H "Authorization: token ${{ secrets.RELEASE_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"tag_name\": \"${TAG}\", \"name\": \"${TAG}\", \"body\": \"${PLUGIN_NAME} ${TAG}\"}" \
-            | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))")
+            | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
+          if [ -z "$RELEASE_ID" ] || [ "$RELEASE_ID" = "None" ] || [ "$RELEASE_ID" = "" ]; then
+            RELEASE_ID=$(curl -s -X POST "${GITEA_URL}/api/v1/repos/${GITEA_REPO}/releases" \
+              -H "Authorization: token ${{ secrets.RELEASE_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"tag_name\": \"${TAG}\", \"name\": \"${TAG}\", \"body\": \"${PLUGIN_NAME} ${TAG}\"}" \
+              | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))")
+          fi
+          echo "Release ID: $RELEASE_ID"
           # Upload assets
           for f in ${PLUGIN_NAME}-*-Linux-*.zip; do
+            echo "Uploading $f..."
             curl -s -X POST "${GITEA_URL}/api/v1/repos/${GITEA_REPO}/releases/${RELEASE_ID}/assets?name=$(basename $f)" \
               -H "Authorization: token ${{ secrets.RELEASE_TOKEN }}" \
               -H "Content-Type: application/octet-stream" \
